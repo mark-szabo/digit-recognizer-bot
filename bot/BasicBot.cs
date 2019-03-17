@@ -1,15 +1,19 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
+﻿// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Azure.CognitiveServices.Vision.CustomVision.Prediction;
 using Microsoft.Bot.Builder;
 using Microsoft.Bot.Builder.Dialogs;
 using Microsoft.Bot.Schema;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 
@@ -37,14 +41,16 @@ namespace Microsoft.BotBuilderSamples
         private readonly UserState _userState;
         private readonly ConversationState _conversationState;
         private readonly BotServices _services;
+        private readonly IConfiguration _configuration;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="BasicBot"/> class.
         /// </summary>
         /// <param name="botServices">Bot services.</param>
         /// <param name="accessors">Bot State Accessors.</param>
-        public BasicBot(BotServices services, UserState userState, ConversationState conversationState, ILoggerFactory loggerFactory)
+        public BasicBot(BotServices services, UserState userState, ConversationState conversationState, ILoggerFactory loggerFactory, IConfiguration configuration)
         {
+            _configuration = configuration;
             _services = services ?? throw new ArgumentNullException(nameof(services));
             _userState = userState ?? throw new ArgumentNullException(nameof(userState));
             _conversationState = conversationState ?? throw new ArgumentNullException(nameof(conversationState));
@@ -79,6 +85,26 @@ namespace Microsoft.BotBuilderSamples
 
             if (activity.Type == ActivityTypes.Message)
             {
+                if (activity.Attachments != null && activity.Attachments.Any())
+                {
+                    // We know the user is sending an attachment as there is at least one item
+                    // in the Attachments list.
+                    await HandleIncomingAttachmentAsync(dc, activity);
+                    return;
+                }
+
+                if (activity.Text?.Trim()?.ToLowerInvariant() == "hi")
+                {
+                    await turnContext.SendActivitiesAsync(
+                        new IActivity[]
+                        {
+                            new Activity(type: ActivityTypes.Message, text: "Hi! 🙋‍"),
+                            new Activity(type: ActivityTypes.Message, text: "Send me a picture of a handwritten digit and I'll tell you what the number is!"),
+                            new Activity(type: ActivityTypes.Message, text: "Yeah, I'm that smart! 😎"),
+                        },
+                        cancellationToken);
+                }
+
                 // Perform a call to LUIS to retrieve results for the current activity message.
                 var luisResults = await _services.LuisServices[LuisConfiguration].RecognizeAsync(dc.Context, cancellationToken);
 
@@ -142,27 +168,122 @@ namespace Microsoft.BotBuilderSamples
                     }
                 }
             }
-            else if (activity.Type == ActivityTypes.ConversationUpdate)
-            {
-                if (activity.MembersAdded != null)
-                {
-                    // Iterate over all new members added to the conversation.
-                    foreach (var member in activity.MembersAdded)
-                    {
-                        // Greet anyone that was not the target (recipient) of this message.
-                        // To learn more about Adaptive Cards, see https://aka.ms/msbot-adaptivecards for more details.
-                        if (member.Id != activity.Recipient.Id)
-                        {
-                            var welcomeCard = CreateAdaptiveCardAttachment();
-                            var response = CreateResponse(activity, welcomeCard);
-                            await dc.Context.SendActivityAsync(response);
-                        }
-                    }
-                }
-            }
 
             await _conversationState.SaveChangesAsync(turnContext);
             await _userState.SaveChangesAsync(turnContext);
+        }
+
+        /// <summary>
+        /// Handle attachments uploaded by users. The bot receives an <see cref="Attachment"/> in an <see cref="Activity"/>.
+        /// The activity has a <see cref="IList{T}"/> of attachments.
+        /// </summary>
+        /// <remarks>
+        /// Not all channels allow users to upload files. Some channels have restrictions
+        /// on file type, size, and other attributes. Consult the documentation for the channel for
+        /// more information. For example Skype's limits are here
+        /// <see ref="https://support.skype.com/en/faq/FA34644/skype-file-sharing-file-types-size-and-time-limits"/>.
+        /// </remarks>
+        private static async Task HandleIncomingAttachmentAsync(DialogContext dc, IMessageActivity activity)
+        {
+            foreach (var file in activity.Attachments)
+            {
+                if (file.ContentType != "image/png" && file.ContentType != "image/jpeg")
+                {
+                    await dc.Context.SendActivityAsync("Sorry, I cannot process images other than png/jpeg.");
+                }
+
+                // Determine where the file is hosted.
+                var remoteFileUrl = file.ContentUrl;
+
+                // Download the actual attachment
+                using (var client = new HttpClient())
+                {
+                    var stream = await client.GetStreamAsync(remoteFileUrl);
+
+                    var (digit, probability) = await PredictDigitWithCustomVisionAsync(client, stream);
+
+                    await SendPredictionAnswer(dc, digit, probability);
+                }
+            }
+        }
+
+        private static async Task SendPredictionAnswer(DialogContext dc, int digit, double probability)
+        {
+            var digitWithArticle = string.Empty;
+            switch (digit)
+            {
+                case 0:
+                    digitWithArticle = "a zero";
+                    break;
+                case 1:
+                case 2:
+                case 3:
+                case 4:
+                case 5:
+                case 6:
+                case 7:
+                case 9:
+                    digitWithArticle = $"a {digit}";
+                    break;
+                case 8:
+                    digitWithArticle = $"an {digit}";
+                    break;
+                default:
+                    break;
+            }
+
+            if (probability < 50)
+            {
+                await dc.Context.SendActivityAsync($"I'm not 100% sure, but I think this is {digitWithArticle}.");
+                return;
+            }
+
+            var random = new Random();
+            switch (random.Next(0, 4))
+            {
+                case 0:
+                    await dc.Context.SendActivityAsync($"I know! I know! It's {digitWithArticle}!");
+                    break;
+                case 1:
+                    await dc.Context.SendActivityAsync($"OK, this should be {digitWithArticle}!");
+                    break;
+                case 2:
+                    await dc.Context.SendActivityAsync($"This is {digitWithArticle}!");
+                    break;
+                case 3:
+                    await dc.Context.SendActivityAsync($"Easy-peasy! This is {digitWithArticle}.");
+                    break;
+            }
+        }
+
+        private async Task<(int, double)> PredictDigitWithCustomVisionAsync(HttpClient client, Stream stream)
+        {
+            var customVision = new CustomVisionPredictionClient(client, false)
+            {
+                ApiKey = _configuration["CustomVisionApiKey"],
+                Endpoint = "https://westeurope.api.cognitive.microsoft.com",
+            };
+
+            var projectId = new Guid(_configuration["CustomVisionProjectId"]);
+            var prediction = await customVision.PredictImageAsync(projectId, stream);
+
+            var tag = prediction.Predictions.OrderByDescending(p => p.Probability).First();
+
+            return (Convert.ToInt32(tag.TagName), tag.Probability);
+
+            /*
+            var requestContent = new StreamContent(stream);
+            requestContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+
+            client.DefaultRequestHeaders.Add("Prediction-Key", _configuration["CustomVisionApiKey"]);
+
+            var response = await client
+                .PostAsync(
+                    $"https://westeurope.api.cognitive.microsoft.com/customvision/v2.0/Prediction/{_configuration["CustomVisionProjectId"]}/image",
+                    requestContent);
+
+            var responseContent = response.Content is HttpContent c ? await c.ReadAsStringAsync() : null;
+            */
         }
 
         // Determine if an interruption has occurred before we dispatch to any active dialog.
@@ -205,17 +326,6 @@ namespace Microsoft.BotBuilderSamples
             var response = activity.CreateReply();
             response.Attachments = new List<Attachment>() { attachment };
             return response;
-        }
-
-        // Load attachment from file.
-        private Attachment CreateAdaptiveCardAttachment()
-        {
-            var adaptiveCard = File.ReadAllText(@".\Dialogs\Welcome\Resources\welcomeCard.json");
-            return new Attachment()
-            {
-                ContentType = "application/vnd.microsoft.card.adaptive",
-                Content = JsonConvert.DeserializeObject(adaptiveCard),
-            };
         }
 
         /// <summary>

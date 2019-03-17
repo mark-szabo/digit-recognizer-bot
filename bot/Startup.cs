@@ -59,6 +59,8 @@ namespace Microsoft.BotBuilderSamples
         /// <param name="services">Specifies the contract for a <see cref="IServiceCollection"/> of service descriptors.</param>
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddSingleton(Configuration);
+
             var secretKey = Configuration.GetSection("botFileSecret")?.Value;
             var botFilePath = Configuration.GetSection("botFilePath")?.Value;
             if (!File.Exists(botFilePath))
