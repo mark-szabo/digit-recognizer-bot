@@ -7,9 +7,11 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Azure.CognitiveServices.Vision.CustomVision.Prediction;
+using Microsoft.Azure.CognitiveServices.Vision.CustomVision.Prediction.Models;
 using Microsoft.Bot.Builder;
 using Microsoft.Bot.Builder.Dialogs;
 using Microsoft.Bot.Schema;
@@ -210,13 +212,13 @@ namespace Microsoft.BotBuilderSamples
                     {
                         var preProcessedImage = Preprocess(image);
 
+                        var (digit, probability) = await PredictDigitWithMLStudioAsync(dc, client, preProcessedImage);
+
+                        /*
                         var preProcessedStream = new MemoryStream();
                         preProcessedImage.Save(preProcessedStream, JpegFormat.Instance);
-
-                        //var byteArray = preProcessedStream.ToArray();
-                        //var base64 = Convert.ToBase64String(byteArray);
-
                         var (digit, probability) = await PredictDigitWithCustomVisionAsync(client, preProcessedStream);
+                        */
 
                         await SendPredictionAnswer(dc, digit, probability);
                     }
@@ -285,23 +287,85 @@ namespace Microsoft.BotBuilderSamples
             var projectId = new Guid(_configuration["CustomVisionProjectId"]);
             var prediction = await customVision.PredictImageAsync(projectId, stream);
 
+            //var requestContent = new StreamContent(stream);
+            //requestContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+
+            //client.DefaultRequestHeaders.Add("Prediction-Key", _configuration["CustomVisionApiKey"]);
+
+            //var response = await client
+            //    .PostAsync(
+            //        $"https://westeurope.api.cognitive.microsoft.com/customvision/v2.0/Prediction/{projectId}/image",
+            //        requestContent);
+
+            //var responseContent = response.Content is HttpContent c ? await c.ReadAsStringAsync() : null;
+            //await dc.Context.SendActivityAsync(responseContent);
+            //var prediction = JsonConvert.DeserializeObject<ImagePrediction>(responseContent);
+
             var tag = prediction.Predictions.OrderByDescending(p => p.Probability).First();
 
             return (Convert.ToInt32(tag.TagName), tag.Probability);
+        }
 
-            /*
-            var requestContent = new StreamContent(stream);
-            requestContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+        private async Task<(int, double)> PredictDigitWithMLServiceAsync(DialogContext dc, HttpClient client, Image<Rgba32> i)
+        {
+            var pixelArray = ConvertImageToTwoDimensionalArray(i);
 
-            client.DefaultRequestHeaders.Add("Prediction-Key", _configuration["CustomVisionApiKey"]);
+            var requestContent = new StringContent("{\"data\": " + JsonConvert.SerializeObject(new[] { pixelArray }) + "}");
+            requestContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 
             var response = await client
                 .PostAsync(
-                    $"https://westeurope.api.cognitive.microsoft.com/customvision/v2.0/Prediction/{_configuration["CustomVisionProjectId"]}/image",
+                    "http://40.67.222.26/score",
                     requestContent);
 
             var responseContent = response.Content is HttpContent c ? await c.ReadAsStringAsync() : null;
-            */
+            await dc.Context.SendActivityAsync(responseContent);
+            //var prediction = JsonConvert.DeserializeObject<ImagePrediction>(responseContent);
+
+            //var tag = prediction.Predictions.OrderByDescending(p => p.Probability).First();
+
+            //return (Convert.ToInt32(tag.TagName), tag.Probability);
+
+            return (0, 0);
+        }
+
+        private async Task<(int, double)> PredictDigitWithMLStudioAsync(DialogContext dc, HttpClient client, Image<Rgba32> i)
+        {
+            var pixelArray = ConvertImageToOneDimensionalArray(i);
+
+            var inputs = new Dictionary<string, List<Dictionary<string, int>>>();
+            inputs.Add("input1",
+                            new List<Dictionary<string, int>>()
+                            {
+                                pixelArray,
+                            });
+
+            var scoreRequest = new
+            {
+                Inputs = inputs,
+                GlobalParameters = new Dictionary<string, string>() { },
+            };
+
+            var requestContent = new StringContent(JsonConvert.SerializeObject(scoreRequest));
+            requestContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+            const string apiKey = ""; // Replace this with the API key for the web service
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+            var response = await client
+                .PostAsync(
+                    "",
+                    requestContent);
+
+            var responseContent = response.Content is HttpContent c ? await c.ReadAsStringAsync() : null;
+            await dc.Context.SendActivityAsync(responseContent);
+            //var prediction = JsonConvert.DeserializeObject<ImagePrediction>(responseContent);
+
+            //var tag = prediction.Predictions.OrderByDescending(p => p.Probability).First();
+
+            //return (Convert.ToInt32(tag.TagName), tag.Probability);
+
+            return (0, 0);
         }
 
         private static Image<Rgba32> Preprocess(Image<Rgba32> image)
@@ -393,6 +457,35 @@ namespace Microsoft.BotBuilderSamples
             return image;
         }
 
+        private static Dictionary<string, int> ConvertImageToOneDimensionalArray(Image<Rgba32> image)
+        {
+            var pixels = new Dictionary<string, int>();
+            pixels.Add("label", 9);
+            for (int j = 0; j < image.Height; j++)
+            {
+                for (int k = 0; k < image.Width; k++)
+                {
+                    pixels.Add($"{j}x{k}", 255 - ((image[k, j].R + image[k, j].G + image[k, j].B) / 3));
+                }
+            }
+
+            return pixels;
+        }
+
+        private static double[,] ConvertImageToTwoDimensionalArray(Image<Rgba32> image)
+        {
+            var pixels = new double[28, 28];
+            for (int j = 0; j < image.Height; j++)
+            {
+                for (int k = 0; k < image.Width; k++)
+                {
+                    pixels[j, k] = (255 - ((image[k, j].R + image[k, j].G + image[k, j].B) / 3)) / 255;
+                }
+            }
+
+            return pixels;
+        }
+
         // Determine if an interruption has occurred before we dispatch to any active dialog.
         private async Task<bool> IsTurnInterruptedAsync(DialogContext dc, string topIntent)
         {
@@ -482,6 +575,13 @@ namespace Microsoft.BotBuilderSamples
                 // Set the new values into state.
                 await _greetingStateAccessor.SetAsync(turnContext, greetingState);
             }
+        }
+
+        private class MlStudioInput
+        {
+            public string[] ColumnNames { get; set; }
+
+            public string[][] Values { get; set; }
         }
     }
 }

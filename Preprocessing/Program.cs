@@ -1,5 +1,7 @@
-﻿using SixLabors.ImageSharp;
+﻿using Newtonsoft.Json;
+using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using SixLabors.Primitives;
@@ -15,15 +17,23 @@ namespace Preprocessing
             using (Image<Rgba32> image = Image.Load("test.jpg"))
             {
                 var i = Preprocess(image);
-                i.Save("testresult.jpg");
+                i.Save("result1-7.jpg");
 
-                var stream = new MemoryStream();
-                i.Save(stream, JpegFormat.Instance);
+                Console.WriteLine(JsonConvert.SerializeObject(ConvertImageToArray(i)));
             }
             using (Image<Rgba32> image = Image.Load("test2.jpg"))
             {
                 var i = Preprocess(image);
-                i.Save("testresult2.jpg");
+                i.Save("result2-7.jpg");
+
+                var pixels = ConvertImageToArray(i);
+                Console.WriteLine(JsonConvert.SerializeObject(pixels));
+
+                for (int j = 0; j < 784; j++)
+                {
+                    Console.Write(pixels[j]);
+                    if (j % 28 == 0) Console.WriteLine();
+                }
             }
         }
 
@@ -115,6 +125,22 @@ namespace Preprocessing
             image.Mutate(x => x.Pad(28, 28).BackgroundColor(new Rgba32(255, 255, 255)));
 
             return image;
+        }
+
+        static int[] ConvertImageToArray(Image<Rgba32> image)
+        {
+            var pixels = new int[784];
+            var i = 0;
+            for (int j = 0; j < image.Height; j++)
+            {
+                for (int k = 0; k < image.Width; k++)
+                {
+                    pixels[i] = 255 - ((image[k, j].R + image[k, j].G + image[k, j].B) / 3);
+                    i++;
+                }
+            }
+
+            return pixels;
         }
     }
 }

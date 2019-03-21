@@ -112,3 +112,5 @@ bot/appsettings\.Development\.json
 bot/Properties/PublishProfiles/
 
 *csproj.user
+
+Preprocessing/bin/
