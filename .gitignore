@@ -114,3 +114,6 @@ bot/Properties/PublishProfiles/
 *csproj.user
 
 Preprocessing/bin/
+
+bin/
+obj/
