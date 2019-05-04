@@ -202,11 +202,15 @@ namespace Microsoft.BotBuilderSamples
 
                     var byteArray = memoryStream.ToArray();
 
-                    var recognizer = new CustomVisionDigitRecognizer(
-                        _configuration["CustomVisionBaseUrl"],
-                        _configuration["CustomVisionProjectId"],
-                        _configuration["CustomVisionPublishedName"],
-                        _configuration["CustomVisionApiKey"]);
+                    //var recognizer = new CustomVisionDigitRecognizer(
+                    //    _configuration["CustomVisionBaseUrl"],
+                    //    _configuration["CustomVisionProjectId"],
+                    //    _configuration["CustomVisionPublishedName"],
+                    //    _configuration["CustomVisionApiKey"]);
+
+                    var recognizer = new MLStudioDigitRecognizer(
+                        _configuration["MLStudioApiUrl"],
+                        _configuration["MLStudioApiKey"]);
 
                     var prediction = await recognizer.PredictAsync(byteArray);
 
