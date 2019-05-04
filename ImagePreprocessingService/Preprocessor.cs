@@ -1,4 +1,5 @@
 ﻿using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using SixLabors.Primitives;
@@ -9,15 +10,23 @@ namespace ImagePreprocessingService
 {
     public class Preprocessor
     {
-        private static readonly Rgba32 _backgroundColor = Rgba32.White;
-        private static readonly Rgba32 _foregroundColor = Rgba32.Black;
+        private readonly Rgba32 _backgroundColor = Rgba32.White;
+        private readonly Rgba32 _foregroundColor = Rgba32.Black;
+
+        public Preprocessor() { }
+        
+        public Preprocessor(Rgba32 backgroundColor, Rgba32 foregroundColor)
+        {
+            _backgroundColor = backgroundColor;
+            _foregroundColor = foregroundColor;
+        }
 
         /// <summary>
         /// Preprocess camera images for MNIST-based neural networks.
         /// </summary>
         /// <param name="image">Source image in a byte array.</param>
         /// <returns>Preprocessed image in a byte array.</returns>
-        public static byte[] Preprocess(byte[] input)
+        public byte[] Preprocess(byte[] input)
         {
             Image<Rgba32> image = Image.Load(input);
 
@@ -34,7 +43,7 @@ namespace ImagePreprocessingService
         /// </summary>
         /// <param name="image">Source image in a file format agnostic structure in memory as a series of Rgba32 pixels.</param>
         /// <returns>Preprocessed image in a file format agnostic structure in memory as a series of Rgba32 pixels.</returns>
-        public static Image<Rgba32> Preprocess(Image<Rgba32> image)
+        public Image<Rgba32> Preprocess(Image<Rgba32> image)
         {
             // Step 1: Apply a grayscale filter 
             image.Mutate(i => i.Grayscale());
@@ -62,7 +71,7 @@ namespace ImagePreprocessingService
             return image;
         }
 
-        private static Rectangle FindBoundingBox(Image<Rgba32> image)
+        private Rectangle FindBoundingBox(Image<Rgba32> image)
         {
             // ➡
             var topLeftX = F(0, 0, x => x < image.Width, y => y < image.Height, true, 1);
@@ -104,7 +113,7 @@ namespace ImagePreprocessingService
 
         public static int[] ConvertImageToArray(Image<Rgba32> image)
         {
-            var pixels = new int[784];
+            var pixels = new int[28*28];
             var i = 0;
             for (int j = 0; j < image.Height; j++)
             {
@@ -118,7 +127,21 @@ namespace ImagePreprocessingService
             return pixels;
         }
 
-        private void PrintToConsole(Image<Rgba32> image)
+        public static double[,] ConvertImageToTwoDimensionalArray(Image<Rgba32> image)
+        {
+            var pixels = new double[28, 28];
+            for (int j = 0; j < image.Height; j++)
+            {
+                for (int k = 0; k < image.Width; k++)
+                {
+                    pixels[j, k] = (255 - ((image[k, j].R + image[k, j].G + image[k, j].B) / 3)) / 255;
+                }
+            }
+
+            return pixels;
+        }
+
+        private static void PrintImageToConsole(Image<Rgba32> image)
         {
             var pixels = ConvertImageToArray(image);
             for (int i = 0; i < 784; i++)

@@ -11,7 +11,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\DigitRecognizerService\DigitRecognizerService.csproj" />
     <ProjectReference Include="..\ImagePreprocessingService\ImagePreprocessingService.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="test.jpg">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="test2.jpg">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

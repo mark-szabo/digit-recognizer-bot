@@ -8,7 +8,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Preprocessing", "Preprocess
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ImagePreprocessingService", "ImagePreprocessingService\ImagePreprocessingService.csproj", "{14856208-5EE3-4F57-8AA8-4862C1D64FCF}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ImagePreprocessingService.Test", "ImagePreprocessingService.Test\ImagePreprocessingService.Test.csproj", "{714E8C24-D329-4220-9ED0-2B176352F234}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DigitRecognizerService.Test", "ImagePreprocessingService.Test\DigitRecognizerService.Test.csproj", "{714E8C24-D329-4220-9ED0-2B176352F234}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitRecognizerService", "DigitRecognizerService\DigitRecognizerService.csproj", "{6B142F2C-9E81-4DE2-BE90-0CB4B328D4FF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -32,6 +34,10 @@ Global
 		{714E8C24-D329-4220-9ED0-2B176352F234}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{714E8C24-D329-4220-9ED0-2B176352F234}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{714E8C24-D329-4220-9ED0-2B176352F234}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6B142F2C-9E81-4DE2-BE90-0CB4B328D4FF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B142F2C-9E81-4DE2-BE90-0CB4B328D4FF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B142F2C-9E81-4DE2-BE90-0CB4B328D4FF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B142F2C-9E81-4DE2-BE90-0CB4B328D4FF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

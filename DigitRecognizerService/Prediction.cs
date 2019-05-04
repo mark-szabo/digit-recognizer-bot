@@ -1,6 +1,6 @@
 using Newtonsoft.Json;
 
-namespace ImagePreprocessingService
+namespace DigitRecognizerService
 {
     public class Prediction
     {
