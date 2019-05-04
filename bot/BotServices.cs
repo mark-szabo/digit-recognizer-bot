@@ -1,4 +1,4 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
+﻿// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License
 
 using System;
@@ -21,7 +21,7 @@ namespace Microsoft.BotBuilderSamples
         /// <summary>
         /// Initializes a new instance of the <see cref="BotServices"/> class.
         /// </summary>
-        /// <param name="luisServices">A dictionary of named <see cref="LuisRecognizer"/> instances for usage within the bot.</param>
+        /// <param name="botConfiguration">Bot configuration.</param>
         public BotServices(BotConfiguration botConfiguration)
         {
             foreach (var service in botConfiguration.Services)

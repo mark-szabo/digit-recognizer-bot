@@ -1,4 +1,4 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
+﻿// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
 using System;
@@ -44,8 +44,11 @@ namespace Microsoft.BotBuilderSamples
         /// <summary>
         /// Initializes a new instance of the <see cref="BasicBot"/> class.
         /// </summary>
-        /// <param name="botServices">Bot services.</param>
-        /// <param name="accessors">Bot State Accessors.</param>
+        /// <param name="services">Bot services.</param>
+        /// <param name="userState">User state.</param>
+        /// <param name="conversationState">Conversation state.</param>
+        /// <param name="loggerFactory">Logger.</param>
+        /// <param name="configuration">Application configuration.</param>
         public BasicBot(BotServices services, UserState userState, ConversationState conversationState, ILoggerFactory loggerFactory, IConfiguration configuration)
         {
             _configuration = configuration;
