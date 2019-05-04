@@ -33,9 +33,9 @@ namespace Preprocessing
                     if ((j + 1) % 28 == 0) Console.WriteLine();
                 }
 
-                var recognizer = new DigitRecognizer("API_URL", "API_KEY");
+                var recognizer = new MLStudioDigitRecognizer("API_URL", "API_KEY");
 
-                var prediction = await recognizer.PredictWithMLStudioAsync(i);
+                var prediction = await recognizer.PredictAsync(i);
 
                 Console.WriteLine($"\n\n\nThis is a(n) {prediction.Tag}! (I'm {prediction.Probability*100}% sure.)\n\n\n");
             }

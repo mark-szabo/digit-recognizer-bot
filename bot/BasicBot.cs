@@ -199,13 +199,13 @@ namespace Microsoft.BotBuilderSamples
 
                     var byteArray = memoryStream.ToArray();
 
-                    var recognizer = new DigitRecognizer(
+                    var recognizer = new CustomVisionDigitRecognizer(
                         _configuration["CustomVisionBaseUrl"],
                         _configuration["CustomVisionProjectId"],
                         _configuration["CustomVisionPublishedName"],
                         _configuration["CustomVisionApiKey"]);
 
-                    var prediction = await recognizer.PredictWithCustomVisionAsync(byteArray);
+                    var prediction = await recognizer.PredictAsync(byteArray);
 
                     await SendPredictionAnswer(dc, prediction.Tag, prediction.Probability);
                 }

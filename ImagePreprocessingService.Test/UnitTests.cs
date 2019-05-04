@@ -25,13 +25,13 @@ namespace DigitRecognizerService.Test
 
             var byteArray = memoryStream.ToArray();
 
-            var recognizer = new DigitRecognizer(
+            var recognizer = new CustomVisionDigitRecognizer(
                 _customVisionBaseUrl,
                 _customVisionProjectId,
                 _customVisionPublishedName,
                 _customVisionApiKey);
 
-            var prediction = await recognizer.PredictWithCustomVisionAsync(byteArray);
+            var prediction = await recognizer.PredictAsync(byteArray);
 
             Assert.Equal(5, prediction.Tag);
         }
@@ -45,13 +45,13 @@ namespace DigitRecognizerService.Test
 
             var byteArray = memoryStream.ToArray();
 
-            var recognizer = new DigitRecognizer(
+            var recognizer = new CustomVisionDigitRecognizer(
                 _customVisionBaseUrl,
                 _customVisionProjectId,
                 _customVisionPublishedName,
                 _customVisionApiKey);
 
-            var prediction = await recognizer.PredictWithRestCustomVisionAsync(byteArray);
+            var prediction = await recognizer.PredictWithRestApiAsync(byteArray);
 
             Assert.Equal(5, prediction.Tag);
         }
@@ -65,11 +65,11 @@ namespace DigitRecognizerService.Test
 
             var byteArray = memoryStream.ToArray();
 
-            var recognizer = new DigitRecognizer(
+            var recognizer = new MLStudioDigitRecognizer(
                 _mlStudioApiUrl,
                 _mlStudioApiKey);
 
-            var prediction = await recognizer.PredictWithMLStudioAsync(byteArray);
+            var prediction = await recognizer.PredictAsync(byteArray);
 
             Assert.Equal(5, prediction.Tag);
         }
@@ -83,9 +83,9 @@ namespace DigitRecognizerService.Test
 
             var byteArray = memoryStream.ToArray();
 
-            var recognizer = new DigitRecognizer(_mlServiceApiUrl);
+            var recognizer = new MLServiceDigitRecognizer(_mlServiceApiUrl);
 
-            var prediction = await recognizer.PredictWithMLServiceAsync(byteArray);
+            var prediction = await recognizer.PredictAsync(byteArray);
 
             Assert.Equal(5, prediction.Tag);
         }

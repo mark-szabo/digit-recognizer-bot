@@ -1,148 +1,35 @@
 ﻿using System;
-using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
 using ImagePreprocessingService;
-using Microsoft.Azure.CognitiveServices.Vision.CustomVision.Prediction;
 using Newtonsoft.Json;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
 namespace DigitRecognizerService
 {
-    public class DigitRecognizer
+    public class MLStudioDigitRecognizer : IDigitRecognizer
     {
-        private readonly string _customVisionBaseUrl;
-        private readonly Guid _customVisionProjectId;
-        private readonly string _customVisionPublishedName;
-        private readonly string _customVisionApiKey;
-
-        private readonly string _mlStudioApiUrl;
-        private readonly string _mlStudioApiKey;
-
-        private readonly string _mlServiceApiUrl;
-
         private readonly HttpClient _httpClient = new HttpClient();
-
-        /// <summary>
-        /// Recognize digits using Custom Vision.
-        /// </summary>
-        /// <param name="customVisionBaseUrl">Custom Vision API base url.</param>
-        /// <param name="customVisionProjectId">Custom Vision project id.</param>
-        /// <param name="customVisionPublishedName">Specifies the name of the model to evaluate against.</param>
-        /// <param name="customVisionApiKey">Custom Vision API key.</param>
-        public DigitRecognizer(string customVisionBaseUrl, string customVisionProjectId, string customVisionPublishedName, string customVisionApiKey)
-        {
-            _customVisionBaseUrl = customVisionBaseUrl;
-            _customVisionProjectId = new Guid(customVisionProjectId);
-            _customVisionPublishedName = customVisionPublishedName;
-            _customVisionApiKey = customVisionApiKey;
-        }
+        private readonly string _apiUrl;
+        private readonly string _apiKey;
 
         /// <summary>
         /// Recognize digits using Azure ML Studio.
         /// </summary>
-        /// <param name="mlStudioApiUrl">API url for the web service.</param>
-        /// <param name="mlStudioApiKey">API key for the web service.</param>
-        public DigitRecognizer(string mlStudioApiUrl, string mlStudioApiKey)
+        /// <param name="apiUrl">API url for the web service.</param>
+        /// <param name="apiKey">API key for the web service.</param>
+        public MLStudioDigitRecognizer(string apiUrl, string apiKey)
         {
-            _mlStudioApiUrl = mlStudioApiUrl;
-            _mlStudioApiKey = mlStudioApiKey;
+            _apiUrl = apiUrl;
+            _apiKey = apiKey;
         }
 
-        /// <summary>
-        /// Recognize digits using Azure ML Service (Classic Web Service).
-        /// </summary>
-        /// <param name="mlServiceApiUrl">API url for the web service.</param>
-        public DigitRecognizer(string mlServiceApiUrl)
-        {
-            _mlServiceApiUrl = mlServiceApiUrl;
-        }
+        public async Task<Prediction> PredictAsync(byte[] image) => await PredictAsync(Image.Load(image));
 
-        public async Task<Prediction> PredictWithCustomVisionAsync(byte[] image)
-        {
-            var preprocessor = new Preprocessor(Rgba32.Black, Rgba32.White);
-            image = preprocessor.Preprocess(image);
-
-            var customVision = new CustomVisionPredictionClient(_httpClient, false)
-            {
-                ApiKey = _customVisionApiKey,
-                Endpoint = _customVisionBaseUrl,
-            };
-
-            var stream = new MemoryStream(image);
-            var prediction = (await customVision.ClassifyImageWithHttpMessagesAsync(_customVisionProjectId, _customVisionPublishedName, stream)).Body;
-
-            var tag = prediction.Predictions.OrderByDescending(p => p.Probability).First();
-
-            return new Prediction
-            {
-                Tag = Convert.ToInt32(tag.TagName),
-                Probability = tag.Probability
-            };
-        }
-
-        public async Task<Prediction> PredictWithRestCustomVisionAsync(byte[] image)
-        {
-            var preprocessor = new Preprocessor(Rgba32.Black, Rgba32.White);
-            image = preprocessor.Preprocess(image);
-
-            var requestContent = new ByteArrayContent(image);
-            requestContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-
-            _httpClient.DefaultRequestHeaders.Add("Prediction-Key", _customVisionApiKey);
-
-            var response = await _httpClient
-                .PostAsync(
-                    $"{_customVisionBaseUrl}/customvision/v3.0/Prediction/{_customVisionProjectId}/classify/iterations/{_customVisionPublishedName}/image",
-                    requestContent);
-
-            response.EnsureSuccessStatusCode();
-
-            var responseContent = response.Content is HttpContent c ? await c.ReadAsStringAsync() : throw new Exception();
-            var prediction = JsonConvert.DeserializeObject<CustomVisionResponseObject>(responseContent);
-
-            var tag = prediction.Predictions.OrderByDescending(p => p.Probability).First();
-
-            return new Prediction
-            {
-                Tag = Convert.ToInt32(tag.TagName),
-                Probability = tag.Probability
-            };
-        }
-
-        public async Task<Prediction> PredictWithMLServiceAsync(byte[] image) => await PredictWithMLServiceAsync(Image.Load(image));
-
-        public async Task<Prediction> PredictWithMLServiceAsync(Image<Rgba32> image)
-        {
-            var preprocessor = new Preprocessor(Rgba32.White, Rgba32.Black);
-            image = preprocessor.Preprocess(image);
-
-            var pixelArray = Preprocessor.ConvertImageToTwoDimensionalArray(image);
-
-            var requestContent = new StringContent("{\"data\": " + JsonConvert.SerializeObject(new[] { pixelArray }) + "}");
-            requestContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-
-            var response = await _httpClient.PostAsync(_mlServiceApiUrl, requestContent);
-
-            var responseContent = response.Content is HttpContent c ? await c.ReadAsStringAsync() : null;
-
-            //var prediction = JsonConvert.DeserializeObject<>(responseContent);
-
-            //var tag = prediction.Predictions.OrderByDescending(p => p.Probability).First();
-
-            return new Prediction
-            {
-                Tag = 0,
-                Probability = 0
-            };
-        }
-
-        public async Task<Prediction> PredictWithMLStudioAsync(byte[] image) => await PredictWithMLStudioAsync(Image.Load(image));
-
-        public async Task<Prediction> PredictWithMLStudioAsync(Image<Rgba32> image)
+        public async Task<Prediction> PredictAsync(Image<Rgba32> image)
         {
             var preprocessor = new Preprocessor(Rgba32.White, Rgba32.Black);
             image = preprocessor.Preprocess(image);
@@ -152,9 +39,9 @@ namespace DigitRecognizerService
             var requestContent = new StringContent(inputs);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 
-            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _mlStudioApiKey);
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
 
-            var response = await _httpClient.PostAsync(_mlStudioApiUrl, requestContent);
+            var response = await _httpClient.PostAsync(_apiUrl, requestContent);
 
             var responseContent = response.Content is HttpContent c ? await c.ReadAsStringAsync() : null;
             var prediction = JsonConvert.DeserializeObject<MLStudioResponseObject>(responseContent);
@@ -212,16 +99,5 @@ namespace DigitRecognizerService
                 public string[][] Values { get; set; }
             }
         }
-
-        private class CustomVisionResponseObject
-        {
-            public CustomVisionPrediction[] Predictions { get; set; }
-            public class CustomVisionPrediction
-            {
-                public double Probability { get; set; }
-                public string TagName { get; set; }
-            }
-        }
-
     }
 }
