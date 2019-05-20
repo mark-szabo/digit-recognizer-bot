@@ -41,8 +41,8 @@ public class Preprocessor
     /// <summary>
     /// Preprocess camera images for MNIST-based neural networks.
     /// </summary>
-    /// <param name="image">Source image in a file format agnostic structure in memory as a series o
-    /// <returns>Preprocessed image in a file format agnostic structure in memory as a series of Rgb
+    /// <param name="image">Source image in a file format agnostic structure in memory as a series of Rgba32 pixels.</param>
+    /// <returns>Preprocessed image in a file format agnostic structure in memory as a series of Rgba32 pixels.</returns>
     public Image<Rgba32> Preprocess(Image<Rgba32> image)
     {
         // Step 1: Apply a grayscale filter
@@ -83,11 +83,11 @@ public class Preprocessor
         var bottomRightX = F(image.Width - 1, image.Height - 1, x => x >= 0, y => y >= 0, true, -1);
 
         // ⬆
-        var bottomRightY = F(image.Height - 1, image.Width - 1, y => y >= 0, x => x >= 0, false, -1)
+        var bottomRightY = F(image.Height - 1, image.Width - 1, y => y >= 0, x => x >= 0, false, -1);
 
         return new Rectangle(topLeftX, topLeftY, bottomRightX - topLeftX, bottomRightY - topLeftY);
 
-        int F(int coordinateI, int coordinateJ, Func<int, bool> comparerI, Func<int, bool> comparerJ
+        int F(int coordinateI, int coordinateJ, Func<int, bool> comparerI, Func<int, bool> comparerJ, bool horizontal, int increment)
         {
             var limit = 0;
             for (int i = coordinateI; comparerI(i); i += increment)
@@ -132,15 +132,7 @@ public class Prediction
 ```
 
 ```csharp
-public interface IDigitRecognizer
-{
-    Task<Prediction> PredictAsync(byte[] image);
-    Task<Prediction> PredictAsync(Image<Rgba32> image);
-}
-```
-
-```csharp
-public class CustomVisionDigitRecognizer : IDigitRecognizer
+public class CustomVisionDigitRecognizer
 {
     private readonly HttpClient _httpClient = new HttpClient();
     private readonly string _baseUrl;
@@ -155,7 +147,7 @@ public class CustomVisionDigitRecognizer : IDigitRecognizer
     /// <param name="projectId">Custom Vision project id.</param>
     /// <param name="publishedName">Specifies the name of the model to evaluate against.</param>
     /// <param name="apiKey">Custom Vision API key.</param>
-    public CustomVisionDigitRecognizer(string baseUrl, string projectId, string publishedName, string ap
+    public CustomVisionDigitRecognizer(string baseUrl, string projectId, string publishedName, string apiKey)
     {
         _baseUrl = baseUrl;
         _projectId = new Guid(projectId);
@@ -167,34 +159,19 @@ public class CustomVisionDigitRecognizer : IDigitRecognizer
     {
         var preprocessor = new Preprocessor(Rgba32.Black, Rgba32.White);
         image = preprocessor.Preprocess(image);
-        var customVision = new CustomVisionPredictionClient(_httpClient, false)
-        {
-            ApiKey = _apiKey,
-            Endpoint = _baseUrl,
-        };
-        var stream = new MemoryStream(image);
-        var prediction = (await customVision.ClassifyImageWithHttpMessagesAsync(_projectId, _publishedNa
-        var tag = prediction.Predictions.OrderByDescending(p => p.Probability).First();
-        return new Prediction
-        {
-            Tag = Convert.ToInt32(tag.TagName),
-            Probability = tag.Probability
-        };
-    }
 
-    public async Task<Prediction> PredictAsync(Image<Rgba32> image)
-    {
-        var preprocessor = new Preprocessor(Rgba32.Black, Rgba32.White);
-        image = preprocessor.Preprocess(image);
         var customVision = new CustomVisionPredictionClient(_httpClient, false)
         {
             ApiKey = _apiKey,
             Endpoint = _baseUrl,
         };
-        var stream = new MemoryStream();
-        image.SaveAsPng(stream);
-        var prediction = (await customVision.ClassifyImageWithHttpMessagesAsync(_projectId, _publishedNa
+
+        var stream = new MemoryStream(image);
+
+        var prediction = (await customVision.ClassifyImageWithHttpMessagesAsync(_projectId, _publishedName, stream)).Body;
+
         var tag = prediction.Predictions.OrderByDescending(p => p.Probability).First();
+
         return new Prediction
         {
             Tag = Convert.ToInt32(tag.TagName),
@@ -208,6 +185,25 @@ public class CustomVisionDigitRecognizer : IDigitRecognizer
 
 ```console
 dotnet add reference ..\DigitRecognizerService\DigitRecognizerService.csproj
+```
+
+```csharp
+public async Task OnTurnAsync(ITurnContext turnContext, CancellationToken cancellationToken)
+{
+    var activity = turnContext.Activity;
+
+    // Create a dialog context
+    if (activity.Type == ActivityTypes.Message)
+    {
+        if (activity.Attachments != null && activity.Attachments.Any())
+        {
+            // We know the user is sending an attachment as there is at least one item
+            // in the Attachments list.
+            await HandleIncomingAttachmentAsync(turnContext, activity);
+            return;
+        }
+    }
+}
 ```
 
 ```csharp
@@ -240,10 +236,10 @@ private async Task HandleIncomingAttachmentAsync(DialogContext dc, IMessageActiv
             var byteArray = memoryStream.ToArray();
 
             var recognizer = new CustomVisionDigitRecognizer(
-                _configuration["CustomVisionBaseUrl"],
-                _configuration["CustomVisionProjectId"],
-                _configuration["CustomVisionPublishedName"],
-                _configuration["CustomVisionApiKey"]);
+                "<CustomVisionBaseUrl>",
+                "<CustomVisionProjectId>",
+                "<CustomVisionPublishedName>",
+                "<CustomVisionApiKey>");
 
             var prediction = await recognizer.PredictAsync(byteArray);
 
@@ -251,6 +247,7 @@ private async Task HandleIncomingAttachmentAsync(DialogContext dc, IMessageActiv
         }
     }
 }
+
 private static async Task SendPredictionAnswer(DialogContext dc, int digit, double probability)
 {
     var digitWithArticle = string.Empty;
@@ -297,26 +294,6 @@ private static async Task SendPredictionAnswer(DialogContext dc, int digit, doub
         case 3:
             await dc.Context.SendActivityAsync($"Easy-peasy! This is {digitWithArticle}.");
             break;
-    }
-}
-```
-
-```csharp
-public async Task OnTurnAsync(ITurnContext turnContext, CancellationToken cancellationToken)
-{
-    var activity = turnContext.Activity;
-
-    // Create a dialog context
-    var dc = await Dialogs.CreateContextAsync(turnContext);
-    if (activity.Type == ActivityTypes.Message)
-    {
-        if (activity.Attachments != null && activity.Attachments.Any())
-        {
-            // We know the user is sending an attachment as there is at least one item
-            // in the Attachments list.
-            await HandleIncomingAttachmentAsync(dc, activity);
-            return;
-        }
     }
 }
 ```
